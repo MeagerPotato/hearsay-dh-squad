@@ -1,0 +1,23 @@
+# Public pretrained weights that scripts/fetch_models.sh downloads (the Docker build runs it).
+# Every file is pinned to an exact Hugging Face commit. Sizes and SHA-256 hashes are those of the exact files
+# our submission was produced with (verified on 2026-09-26: they equal the Hub's LFS object ids, and the small
+# files match the pinned commits' git blob ids).
+# Columns (TAB-separated, no empty fields; '-' = no hash):
+#   group  repo  revision  file_in_repo  path_under_HEARSAY_MODELS  bytes  sha256
+# Groups: 'core' = needed to score (the fusion's detectors); 'la' = the official LA checkpoint, needed only
+# by scripts that call hearsay.tak_aasist.load_la_model (fine-tuning, re-scoring); the inference pipeline
+# builds tak_ft from the XLS-R config plus our own checkpoint (skip: --no-la / FETCH_LA=0); 'ecapa' =
+# SpeechBrain speaker model for the speaker-consistency expert, report evidence only (--no-ecapa / FETCH_ECAPA=0).
+core	SpeechAntiSpoofingBenchmarks/W2V2-AASIST	196128e5a5101d5cb6ac7701597891bc7de7e7b5	w2v2-aasist.onnx	w2v2-aasist/w2v2-aasist.onnx	1264789106	837169def567cd68d94f7b5a6bd7ef55a7b64ea9cec61364944bcb66521e92d3
+la	SpeechAntiSpoofingBenchmarks/W2V2-AASIST	196128e5a5101d5cb6ac7701597891bc7de7e7b5	LA_model.pth	w2v2-aasist/LA_model.pth	1271633441	bd6f36097259fe54e7004eb983651e5304d807be81156dbd04faccb70d91e10c
+core	SpeechAntiSpoofingBenchmarks/XLSR-SLS	6b99ebc9d9240571c4fe21b364d49845ce9b6bd9	xlsr-sls.onnx	xlsr-sls/xlsr-sls.onnx	1356274368	0aa36298a1a893bfb58a8d721dd30d046157f559da1165f95d2a0b69988c1bbd
+core	facebook/wav2vec2-xls-r-300m	1a640f32ac3e39899438a2931f9924c02f080a54	config.json	xls-r-300m/config.json	1568	0bffa0d0e98153e883b828d86491f3c6062cb563dc9d7a9cfd1790da30c286ac
+core	microsoft/wavlm-large	c1423ed94bb01d80a3f5ce5bc39f6026a0f4828c	config.json	wavlm-large/config.json	2222	a3d8fe831aaf63d725b54a8ac36f3549cd4365c5086774b2c89cabbc6f9e129d
+core	microsoft/wavlm-large	c1423ed94bb01d80a3f5ce5bc39f6026a0f4828c	preprocessor_config.json	wavlm-large/preprocessor_config.json	214	60ca5a31e13f69ee2fbf147504c8676db5f6398fd7a6b12294341dff838edfcf
+core	microsoft/wavlm-large	c1423ed94bb01d80a3f5ce5bc39f6026a0f4828c	pytorch_model.bin	wavlm-large/pytorch_model.bin	1261990257	fdee460e529396ddb2f8c8e8ce0ad74cfb747b726bc6f612e666c7c1e1963c9d
+ecapa	speechbrain/spkrec-ecapa-voxceleb	0f99f2d0ebe89ac095bcc5903c4dd8f72b367286	hyperparams.yaml	spkrec-ecapa-voxceleb/hyperparams.yaml	1919	6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41
+ecapa	speechbrain/spkrec-ecapa-voxceleb	0f99f2d0ebe89ac095bcc5903c4dd8f72b367286	embedding_model.ckpt	spkrec-ecapa-voxceleb/embedding_model.ckpt	83316686	0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2
+ecapa	speechbrain/spkrec-ecapa-voxceleb	0f99f2d0ebe89ac095bcc5903c4dd8f72b367286	mean_var_norm_emb.ckpt	spkrec-ecapa-voxceleb/mean_var_norm_emb.ckpt	1921	cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33
+ecapa	speechbrain/spkrec-ecapa-voxceleb	0f99f2d0ebe89ac095bcc5903c4dd8f72b367286	classifier.ckpt	spkrec-ecapa-voxceleb/classifier.ckpt	5534328	fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535
+ecapa	speechbrain/spkrec-ecapa-voxceleb	0f99f2d0ebe89ac095bcc5903c4dd8f72b367286	label_encoder.txt	spkrec-ecapa-voxceleb/label_encoder.txt	128619	e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9
+ecapa	speechbrain/spkrec-ecapa-voxceleb	0f99f2d0ebe89ac095bcc5903c4dd8f72b367286	config.json	spkrec-ecapa-voxceleb/config.json	51	15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664

@@ -1,0 +1,42 @@
+# The Docker build context is: code (hearsay/, scripts/), docs/, requirements.txt, constraints.txt and
+# models/ (our trained artifacts, filled by scripts/export_models.sh). Everything else stays out: datasets,
+# working state and the public pretrained weights, which the build downloads itself (scripts/fetch_models.sh).
+
+# version control, editors, caches
+.git
+.gitignore
+.venv
+.claude
+**/.DS_Store
+**/__pycache__
+**/*.py[co]
+
+# datasets and local working state. export_models.sh copies what inference needs from work/ into models/,
+# and the chosen submissions/<version>/fusion_meta.json into models/fusion_meta.json.
+data
+work
+submissions
+third_party
+bin
+reports
+out
+dist
+cache_predict
+
+# organizer documents and big archives
+Copy of *
+*.pdf
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# public weights never travel through the context, even if someone fetched them into models/
+models/w2v2-aasist
+models/xlsr-sls
+models/xls-r-300m
+models/wavlm-large
+models/spkrec-ecapa-voxceleb
+models/hf
+models/**/*.part
+models/**/*.tmp

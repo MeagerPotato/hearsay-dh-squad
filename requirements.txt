@@ -1,0 +1,26 @@
+# Pinned to the versions used to produce our submission (Python 3.12 or 3.13: numpy, scipy, librosa and
+# PyWavelets at these versions require Python >= 3.12).
+numpy==2.5.3
+scipy==1.18.1
+pandas==3.0.6
+soundfile==0.14.0
+soxr==1.1.0
+librosa==1.0.0
+numba==0.67.0
+torch==2.14.0
+torchaudio==2.11.0
+transformers==5.17.0
+safetensors==0.8.0
+huggingface_hub==1.33.0
+onnxruntime==1.30.0
+scikit-learn==1.9.1
+lightgbm==4.7.0
+praat-parselmouth==0.4.7
+PyWavelets==1.10.0
+mutagen==1.48.1
+Jinja2==3.1.6
+typer==0.27.2
+speechbrain==1.1.1
+webrtcvad-wheels==2.0.14
+pyloudnorm==0.2.0
+matplotlib==3.11.2

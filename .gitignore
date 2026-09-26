@@ -1,0 +1,28 @@
+# data & large artifacts (never commit)
+data/
+work/
+third_party/
+bin/
+*.zip
+*.tar
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.onnx
+*.npy
+*.npz
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+# organizer-provided documents stay local
+Copy of *
+NSA_HackGT13_TechTalk.pdf
+# generated reports are large (716 MB for the test set); a few samples live in docs/sample_reports/
+reports/
+.claude/
+# exported model weights are published as a release archive, not committed
+models/*
+!models/README.md
+!models/fusion_meta.json
