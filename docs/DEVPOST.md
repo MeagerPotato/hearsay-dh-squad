@@ -43,8 +43,8 @@ noise, and can explain each call to a human.
    all passed through our pipeline replica. We then added real-world MUSAN noise so each clip's noise floor follows
    the test set's distribution, applied the same way to real and fake clips, plus ~5% codec laundering (MP3, AAC,
    Opus, G.726, G.722, µ-law).
-3. **We measured what hurts.** The best published detector scores minDCF 0.036 on clean pipeline audio but 0.198
-   once test-matched noise is added. Almost all errors come from quiet clips.
+3. **We measured what hurts.** The best published detector scores minDCF 0.020 on clean pipeline audio but 0.140
+   once test-matched noise is added (organizers' scoring settings, P_spoof = 0.3). Almost all errors come from quiet clips.
 4. **We trained and fused.** We trained a WavLM-Large layer probe and head, fine-tuned the XLS-R + AASIST model on
    the Mac GPU, and fitted a logistic-regression fusion with false alarms weighted 4×, on a dev set that includes
    generator families no component was trained on.
@@ -63,9 +63,9 @@ noise, and can explain each call to a human.
   set. We chose not to use them.
 
 ## Accomplishments that we're proud of
-- Cross-validated minDCF of **0.098** on test-matched audio with seen attack types and **0.206** on synthesis
-  families no component was trained on, versus 0.198 and 0.276 for the strongest published detector under the same
-  conditions. **[Add the organizers' test-set feedback score here if you receive it.]**
+- Cross-validated minDCF of **0.076** on test-matched audio with seen attack types and **0.153** on synthesis
+  families no component was trained on, versus 0.140 and 0.179 for the strongest published detector under the same
+  conditions (organizers' scoring settings: P_spoof = 0.3, C_fa = 4). **[Add the organizers' test-set feedback score here if you receive it.]**
 - A clear, honest account of what did *not* work: denoising before detection (made it worse), full fine-tuning
   (forgot unseen attacks), transductive self-training (helped in simulation, hurt on the full mix), and putting the
   glass-box model into the score (no gain, so we kept it for explanations only).

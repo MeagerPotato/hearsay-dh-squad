@@ -133,30 +133,20 @@ docker run --rm -it --entrypoint bash hearsay-dhsquad
 
 ## Time, memory and disk
 
-| | Estimate |
+Measured on our laptop (Apple M5, Docker Desktop limited to 6 CPUs and 8 GB), building from a fresh clone of
+this repository with a plain `docker build`, native arm64:
+
+| | Measured |
 |---|---|
-| Build, x86-64 | 10 to 20 min, mostly downloading about 3.9 GB of public weights, our 589 MB release archive and the Python wheels |
-| Build, native arm64 (Apple silicon) | add 5 to 15 min to compile `praat-parselmouth`, which has no Linux arm64 wheel |
-| Scoring the 1,671 test clips (103 min of audio), 8 CPU threads, native | about 25 to 45 min for a four-detector fusion such as v2h (two XLS-R ONNX detectors, WavLM-Large head, forensic model); about 10 min more for each fine-tuned XLS-R checkpoint (`tak_ft`, `tak_head`) in the fusion |
-| Measured on the laptop CPU, 2 threads, 8 clips | per clip: XLS-R + AASIST 0.43 s, XLSR-SLS 0.49 s, WavLM-Large 0.75 s, forensic features 0.33 s (2 processes), fine-tuned XLS-R 0.32 s. About 2.0 s per clip for v2h's four detectors, so about 55 min for the test set at 2 threads |
-| Same, x86-64 image emulated on Apple silicon | 2 to 4 times slower |
-| Memory | at most one large model is loaded at a time; give Docker at least 8 GB |
-| Disk | the image is about 7.5 GB; keep about 15 GB free for the build |
+| Build from a fresh clone | **11.5 min**: public weights 2.5 min (3.9 GB at about 26 MB/s), Python packages 6.5 min (includes compiling `praat-parselmouth`, which has no Linux arm64 wheel), our release archive plus checksum checks 0.5 min |
+| Build, x86-64 | not measured; expect less, because every wheel exists prebuilt for x86-64 |
+| Scoring, submitted fusion v3 (4 detectors), CPU | **2.0 s per clip** with 6 threads over the whole test set (XLS-R + AASIST 0.45 s, XLSR-SLS 0.46 s, re-trained XLS-R + AASIST 0.47 s, WavLM-Large 0.60 s) plus about 11 s of model loading |
+| Scoring the full test set (1,671 clips) | **55.4 min** from `docker run` to exit (3,324 s) |
+| Memory | one large model is loaded at a time; 8 GB for Docker was enough (4.2 GB in use when we checked during WavLM-Large scoring) |
+| Disk | 6.7 GB of files inside the image (4.3 GB model weights, 1.8 GB Python packages, 0.6 GB system); Docker Desktop's image store reports 11.7 GB because it also counts the compressed layers. Keep about 20 GB free for the build |
 
-These run times are estimates from our laptop measurements, not from a Docker run. At the end of every run,
-`predict` prints the real per-model time (load, scoring, seconds per file), and `*_scores.json` stores it.
-The main costs are XLS-R/WavLM inference (about 1,720 four-second windows through each 300M-parameter
-network) and the forensic features, which run in `--workers` parallel processes.
-
-Approximate image size:
-
-| Layer | Size |
-|---|---|
-| `python:3.12-slim` plus ffmpeg, exiftool, libsndfile | about 0.5 GB |
-| Python packages (CPU-only torch, onnxruntime, transformers, scipy, LightGBM, ...) | about 1.5 GB |
-| public weights | about 3.9 GB (5.2 GB with `--build-arg FETCH_LA=1`) |
-| our artifacts | about 1 MB without `tak_ft` or self-training (e.g. v2h); plus 0.63 GB per fine-tuned checkpoint (`tak_ft`, `tak_head`), plus 184 MB with self-training |
-| optional Whisper (`WITH_WHISPER=1`) | 1 GB |
+`predict` prints the real per-model time (load, scoring, seconds per file) at the end of every run, and
+`*_scores.json` stores it.
 
 ## Does the container reproduce our submitted scores?
 
@@ -175,8 +165,7 @@ which is all minDCF uses, should be essentially identical. The scores are not gu
 bit, for these known reasons:
 
 - WavLM-Large ran in float16 on the Mac GPU when we developed the head, and it runs in float32 on CPU in
-  Docker, so `wavlm_head` log-odds differ slightly (by up to 0.006 in an 8-clip check; self-training
-  amplifies such differences).
+  Docker, so `wavlm_head` log-odds differ slightly (self-training, which v3 does not use, would amplify this).
 - `tak_ft` and `tak_head` are stored as float16 (they load back into the float32 network). This rounds each weight by at most
   about 0.05%. Use `scripts/export_models.sh --keep-fp32` if bit-exact weights matter more than 0.63 GB.
 - CPU math libraries differ between x86 and ARM, which changes results around the fifth significant digit.
@@ -185,6 +174,37 @@ The fusion arithmetic itself is exact: fed our development scores instead of liv
 `work/scores/test/*.json` passed as `--cache-dir`), `predict` reproduces `submissions/v2h/dh_squad_predictions.tsv`
 byte for byte. That needs the full-precision coefficients (`coef_full`) that `make_submission.py` records from
 v2h on; with only the rounded ones, scores differ by up to about 4e-6.
+
+**Measured.** We built the image from a fresh clone of this repository and scored 30 test clips chosen across
+the whole score range (confident fakes, confident reals, borderline and very quiet clips), then compared with
+the run that produced our submission (`python scripts/compare_runs.py out/..._scores.json
+submissions/final_pipeline/dh_squad_predictions_scores.json`):
+
+| | Largest difference | Spearman rank correlation |
+|---|---|---|
+| `w2v2_aasist`, `xlsr_sls` (ONNX) | 1.2e-4 log-odds | 1.000 |
+| `tak_head` (float16-stored weights, CPU vs Mac GPU) | 0.057 log-odds | 1.000 |
+| `wavlm_head` (float32 CPU vs float16 Mac GPU) | 0.089 log-odds | 1.000 |
+| **cm-score** | **0.0089** | **0.9996** |
+
+No clip changed its verdict (cm-score above or below 0.5).
+
+**Measured on the whole test set.** We then ran the same image on all 1,671 test clips (the `docker run` command
+above, 55 minutes) and compared the same way:
+
+| | Largest difference | Spearman rank correlation |
+|---|---|---|
+| `w2v2_aasist` (ONNX) | 2.0e-3 log-odds | 1.000000 |
+| `xlsr_sls` (ONNX) | 6.6e-4 log-odds | 1.000000 |
+| `tak_head` (float16-stored weights, CPU vs Mac GPU) | 0.25 log-odds | 0.99989 |
+| `wavlm_head` (float32 CPU vs float16 Mac GPU) | 0.057 log-odds | 0.999997 |
+| **cm-score** | **0.0097** | **0.999999** |
+
+No clip changed its verdict, all 1,671 scores are distinct, and the 501 clips ranked most synthetic (the top
+30%, the expected share of fakes) are the same set in both runs. No clip moved more than 9 places in the
+ranking of 1,671 (Kendall's tau 0.9995). minDCF depends only on that ranking, so the image reproduces our
+submission's score for practical purposes. That run's TSV, per-model scores and log are in
+[`submissions/docker_full_run/`](../submissions/docker_full_run/).
 
 To check after a Docker run, compare the result with the TSV we submitted:
 
@@ -206,7 +226,7 @@ EOF
 | Build argument | Default | Effect |
 |---|---|---|
 | `OWN_MODELS_URL`, `OWN_MODELS_SHA256` | our v1.0 release archive and its SHA-256 | where our trained artifacts come from when `models/` has no complete export |
-| `FETCH_LA` | 1 | 0 leaves out the official LA checkpoint (1.27 GB), which inference does not read |
+| `FETCH_LA` | 0 | 1 adds the official LA checkpoint (1.27 GB); inference does not read it, only `scripts/score_tak_ft.py` does |
 | `FETCH_ECAPA` | 1 | 0 leaves out the speaker model (90 MB); reports then lack speaker-consistency evidence |
 | `WITH_WHISPER` | 0 | 1 adds Whisper small.en (1 GB) for `predict --reports --asr` on files without a cached transcript |
 | `HF_ENDPOINT` | https://huggingface.co | a Hugging Face mirror |

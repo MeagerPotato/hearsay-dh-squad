@@ -14,10 +14,10 @@ training anything we studied the test set itself. It turned out to be VCTK / ASV
 DiffSSD), processed by a pipeline we could reproduce, with background noise added. That finding shaped every
 later decision.
 
-- **Result:** the submitted fusion (v3) reaches a cross-validated minDCF of **0.098** on test-matched ASVspoof
-  2019 LA dev audio with seen attack types and **0.206** on synthesis families no component was trained on
-  (EER 3.7% and 6.0%), against 0.198 and 0.276 for the best-known published detector under the same noise.
-  **[FINAL: add the organizers' test-set minDCF from the one-time feedback, if they send it]**
+- **Result:** at the organizers' scoring settings (P_spoof = 0.3, C_fa = 4), the submitted fusion (v3) reaches a
+  cross-validated minDCF of **0.076** on test-matched ASVspoof 2019 LA dev audio with seen attack types and
+  **0.153** on synthesis families no component was trained on (EER 3.7% and 6.0%), against 0.140 and 0.179 for
+  the best-known published detector under the same noise.
 - **Run it** (after the setup in [Section 9](#9-how-to-run)):
 
 ```bash
@@ -57,16 +57,18 @@ The brief, in short:
   confident real to 1.0 = confident synthetic.
 - Judging: 60% minDCF, 20% diversity, quality and depth of techniques, 20% this documentation.
 
-The metric is the ASVspoof 5 minimum detection cost with the organizers' settings (P_spoof = 0.5,
-C_miss = 1, C_fa = 4). After normalisation it reduces to
+The metric is the ASVspoof 5 minimum detection cost with the organizers' settings: P_spoof = 0.3 (30% of the
+test clips are synthetic), C_miss = 1 and C_fa = 4 (a false alarm costs four times a miss). The organizers
+confirmed these values on Discord on 26 September. The copy of the scorer shipped to teams said P_spoof = 0.5,
+which is what we used during development (see the note in Section 5). After normalisation it reduces to
 
 ```
-minDCF = min over thresholds t of  [ P_miss(t) + 4 * P_fa(t) ]
+minDCF = min over thresholds t of  [ P_miss(t) + (4 x 0.3 / 0.7) * P_fa(t) ]  =  [ P_miss(t) + 1.71 * P_fa(t) ]
 ```
 
 where P_miss(t) is the share of synthetic clips scored below t and P_fa(t) the share of real clips scored at
 or above t. Flagging nothing already gives 1.0 and a perfect ranking gives 0. Moving the threshold to flag 1%
-more of the real clips only pays off if it catches at least 4% more of the fakes.
+more of the real clips only pays off if it catches at least 1.7% more of the fakes.
 
 What that meant for our design:
 
@@ -121,7 +123,8 @@ real/synthetic"). This one number explains most of what follows: noise, not unfa
 breaks the published detectors here (Section 5).
 
 **The scorer's direction is flipped.** The organizers' scoring code is the ASVspoof 5 Track-1 package with two
-parameters changed (P_spoof 0.05 to 0.5, C_fa 10 to 4; we diffed it against the upstream repository). That code
+parameters changed (P_spoof 0.05 to 0.5 in the copy we received, later confirmed as 0.3; C_fa 10 to 4; we diffed
+it against the upstream repository). That code
 treats a *higher* score as bona fide, while the submission format asks for 1.0 = synthetic. Run unmodified on
 correctly oriented scores, a perfect detector gets minDCF = 1.0. We follow the written specification, told the
 organizers about the mismatch, and [`hearsay/metrics.py`](hearsay/metrics.py) reports both readings. Every
@@ -180,13 +183,13 @@ chain-of-custody table. About 30–40 ms.
 
 **XLS-R + AASIST, published** (`w2v2_aasist`). Tak et al.'s wav2vec 2.0 XLS-R 300M front end with an AASIST
 graph-attention back end, trained on ASVspoof 2019 LA, run through ONNX. It is excellent on clean audio
-(minDCF 0.036 on our replica of LA dev) and holds up well on generators it never saw, but test-matched noise
-makes it 5.5 times worse (0.198) and it calls 97.5% of genuine LJ Speech clips fake. About 0.2 s on CPU;
+(minDCF 0.020 on our replica of LA dev) and holds up well on generators it never saw, but test-matched noise
+makes it 7 times worse (0.140) and it calls 97.5% of genuine LJ Speech clips fake. About 0.2 s on CPU;
 1.3 GB.
 
 **XLSR-SLS, published** (`xlsr_sls`). Zhang et al.'s (ACM MM 2024) XLS-R model with a "sensitive layer
 selection" head that pools evidence from several transformer layers, also trained on ASVspoof 2019 LA. It does
-better on noise-matched dev (0.146), raises fewer false alarms on LJ Speech (56%), and gives a second,
+better on noise-matched dev (0.116), raises fewer false alarms on LJ Speech (56%), and gives a second,
 differently built opinion from the same backbone family. Similar cost; 1.4 GB.
 
 **XLS-R + AASIST, fine-tuned by us** (`tak_ft`). We ported the model from fairseq to Hugging Face transformers
@@ -194,31 +197,32 @@ differently built opinion from the same backbone family. Similar cost; 1.4 GB.
 the top 6 of its 24 transformer layers plus the back end on the laptop GPU, with fresh test-matched noise in
 every batch and real voices from both VCTK and LibriSpeech. It attacks the failure above directly: noise, not
 the attacks, is what hurts the published model. On the 800 matched-dev clips that picked the checkpoint,
-minDCF went from 0.172 to 0.145 (step 2,000). On the whole matched dev set the gain is smaller (0.198 to
-0.181), false alarms on LJ Speech fall from 97.5% to 5%, but it lost most of the published model's reach to
+minDCF went from 0.172 to 0.145 (step 2,000; measured during training at P_spoof = 0.5). On the whole matched
+dev set the gain is smaller (0.140 to 0.123 at the organizers' 0.3), false alarms on LJ Speech fall from 97.5% to 5%, but it lost most of the published model's reach to
 unseen generators (Section 5). Training takes about 1.1 s per step (2,000 steps, about 40 minutes); scoring
 is one forward pass per 4 s window, about 0.11 s per clip on the laptop GPU and 0.32 s on 2 CPU threads
 (measured on 8 clips).
 
 **XLS-R + AASIST, back end re-trained by us** (`tak_head`). The same recipe with XLS-R frozen: only the AASIST
 back end (0.45 M parameters) learns from the noise-matched audio (1,500 steps, about 0.7 s each; best
-checkpoint at step 600, 0.172 to 0.149 on the 800 selection clips). Leaving the XLS-R features untouched keeps
+checkpoint at step 600, 0.172 to 0.149 on the 800 selection clips at P_spoof = 0.5). Leaving the XLS-R features untouched keeps
 most of the published model's reach to unseen generators (Section 5), and unlike the full fine-tune it helps
 the fusion (v2i, v3). Same scoring cost as `tak_ft`.
 
 **WavLM-Large head** (`wavlm_head`). Frozen WavLM-Large; we average the hidden states of layers 3–12 over time
 (10 x 1,024 numbers), standardise them and apply a logistic regression trained on noise-matched data with real
-clips weighted 4x. It is the best single model on seen attacks (0.111) and flags only 7% of LJ Speech and 4%
+clips weighted 4x. It is the best single model on seen attacks (0.079) and flags only 7% of LJ Speech and 4%
 of held-out LibriSpeech speakers, but catches fewer unseen generators than the XLS-R models. The head is one
 linear layer (10,240 weights and a bias); the cost is one WavLM forward pass over the first 6 s, about 0.07 s
 per clip on the laptop GPU and 0.75 s on 2 CPU threads (measured on 8 clips). Our first head (used up to v2g)
-took only the probe's best four layers, 6–9, and scored 0.131 on seen attacks (Section 6).
+took only the probe's best four layers, 6–9, and scored 0.131 on seen attacks against the current head's 0.111
+(both at P_spoof = 0.5, the setting we developed with; Section 6).
 
 **Self-training, optional** (`wavlm_selftrain`). Semi-supervised and transductive, with no labels: the
 ensemble's most confident test clips become pseudo-labels (top 15% as synthetic, bottom 50% as real) and the
 WavLM head is refit twice with them, so it can learn the test set's own attack signatures. In a labelled
 simulation (VCTK real speech + unseen DiffSSD generators) it improved the fused minDCF from 0.269 to
-0.229–0.251. It reuses the WavLM features, so it only adds three logistic-regression fits per batch, but it
+0.229–0.251 (P_spoof = 0.5). It reuses the WavLM features, so it only adds three logistic-regression fits per batch, but it
 makes one file's score depend on the rest of the batch. **It is off in the submitted fusion (v3):** on the full
 dev mix it made the fusion worse (Section 5), because its pseudo-labels inherit the XLS-R detectors' mistakes
 on quiet clips.
@@ -230,9 +234,9 @@ speaker-embedding and compression-grid experts.
 
 **Glass-box model** (`forensic_gbm`). LightGBM over 216 named expert features, after dropping features that
 are constant on the test set, flagged by an expert's author as corpus shortcuts, or that tell our dev data
-apart from the test set (adversarial validation). Alone it is weak (minDCF 0.48). We tried it inside the
-fusion: it earns a small positive weight, but the fusion scores slightly better without it (0.146 vs 0.151 on
-the fusion dev set), so the submitted score (v3) leaves it out. Its features are what the reports explain.
+apart from the test set (adversarial validation). Alone it is weak (minDCF 0.38). We tried it inside the
+fusion: it earns a small positive weight, but the fusion scores no better with it (0.146 vs 0.151 on the fusion
+dev set at the development setting P_spoof = 0.5; 0.119 either way at 0.3), so the submitted score (v3) leaves it out. Its features are what the reports explain.
 Milliseconds once the features exist.
 
 **Fusion and calibration** ([`scripts/make_submission.py`](scripts/make_submission.py) writes
@@ -264,7 +268,7 @@ appears as one "deep" evidence item that lists each detector's score and how far
 and the report's verdict is exactly the value in the TSV.
 
 **How we kept the black boxes in check.** The brief asks to minimise black-box detectors. Honestly, the deep
-detectors carry the ranking power; the glass-box model alone reaches only 0.48, and adding it to the fusion
+detectors carry the ranking power; the glass-box model alone reaches only 0.38, and adding it to the fusion
 did not improve minDCF, so we did not put it in the score just to claim that. What we did instead:
 (1) we can say where the deep evidence lives (middle WavLM layers, Section 6); (2) the fusion is twelve
 weights you can read in `fusion_meta.json`, including how they change on quiet clips; (3) every report puts
@@ -323,8 +327,9 @@ The fine-tuning job draws fresh noise every time it uses a clip, so the model ca
 
 ## 5. Results
 
-All numbers are minDCF under the written specification, computed with
-[`hearsay/metrics.py`](hearsay/metrics.py). "Flagged" means the clip lands on the synthetic side of the model's
+All numbers in the next table are minDCF at the organizers' final settings (P_spoof = 0.3, C_fa = 4) under the
+written specification, computed with [`hearsay/metrics.py`](hearsay/metrics.py), which matches the organizers'
+scorer exactly (checked against their code). "Flagged" means the clip lands on the synthetic side of the model's
 own decision boundary (log-odds above 0; for the fusion, calibrated probability above 0.5).
 
 - **(a) Seen attacks:** noise-matched ASVspoof 2019 LA dev, 1,628 real + 1,500 fake (A01–A06), speakers not in
@@ -336,18 +341,18 @@ own decision boundary (log-odds above 0; for the fusion, calibrated probability 
 
 | Component | (a) Seen attacks, minDCF (EER) | (b) Unseen generators, minDCF (EER) | (c) Real clips flagged, LJ / LibriSpeech |
 |---|---|---|---|
-| XLS-R + AASIST, published | 0.198 (6.4%) | 0.276 (6.8%) | 97.5% / 80.0% |
-| XLSR-SLS, published | 0.146 (6.1%) | 0.274 (9.3%) | 55.8% / 54.8% |
-| XLS-R + AASIST, fine-tuned by us | 0.181 (4.9%) | 0.541 (12.4%) | 5.0% / 4.7% |
-| XLS-R + AASIST, back end re-trained by us | 0.179 (5.2%) | 0.305 (8.7%) | 38.4% / 16.0% |
-| WavLM-Large head (ours) | 0.111 (3.5%) | 0.344 (10.4%) | 7.4% / 4.0% |
-| Forensic glass-box model (ours) | 0.476 (15.6%) | 0.475 (15.5%) | 20.7% / 12.9% |
-| **Fusion (submitted, v3; out of fold)** | **0.098 (3.7%)** | **0.206 (6.0%)** | 37.6% / 15.7% |
+| XLS-R + AASIST, published | 0.140 (6.4%) | 0.179 (6.8%) | 97.5% / 80.0% |
+| XLSR-SLS, published | 0.116 (6.1%) | 0.214 (9.3%) | 55.8% / 54.8% |
+| XLS-R + AASIST, fine-tuned by us | 0.123 (4.9%) | 0.331 (12.4%) | 5.0% / 4.7% |
+| XLS-R + AASIST, back end re-trained by us | 0.117 (5.2%) | 0.197 (8.7%) | 38.4% / 16.0% |
+| WavLM-Large head (ours) | 0.079 (3.5%) | 0.252 (10.4%) | 7.4% / 4.0% |
+| Forensic glass-box model (ours) | 0.384 (15.6%) | 0.382 (15.5%) | 20.7% / 12.9% |
+| **Fusion (submitted, v3; out of fold)** | **0.076 (3.7%)** | **0.153 (6.0%)** | 37.6% / 15.7% |
 
 How to read it:
 
-- The same published XLS-R + AASIST scores 0.036 (EER 0.8%) on the clean replica of the same dev clips.
-  Added noise alone makes it 5.5 times worse.
+- The same published XLS-R + AASIST scores 0.020 (EER 0.8%) on the clean replica of the same dev clips.
+  Added noise alone makes it 7 times worse.
 - The published XLS-R detectors generalise best to generators they never saw, but raise many false alarms on
   unfamiliar real voices. Our WavLM head, trained on noise-matched data with non-VCTK real voices, is the
   reverse: best on seen attacks, few false alarms, weaker on unseen generators. That complementarity is why
@@ -358,8 +363,14 @@ How to read it:
   held-out DiffSSD clips. Re-training only its back end keeps 68% and 98%. Details in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-**Fusion against the best single model**, on the fusion dev set ((a) and (b) pooled: 1,628 real, 2,645 fake;
-fusion numbers are grouped 5-fold cross-validation, out of fold):
+**Development history.** We made these choices with the scorer as shipped to us, P_spoof = 0.5, so the next two
+tables use that setting. They are relative comparisons on the fusion dev set ((a) and (b) pooled: 1,628 real,
+2,645 fake; grouped 5-fold cross-validation, out of fold). When the organizers confirmed P_spoof = 0.3 we
+re-ran the fusion sweep at 0.3, over the same model sets, real-clip weights of 1 to 4 and regularisation. The
+submitted fusion scores 0.119 there (0.123 under the flipped reading), and no setting beat it by more than 0.001,
+so the choice did not change.
+
+**Fusion against the best single model** (P_spoof = 0.5):
 
 | | minDCF |
 |---|---|
@@ -371,11 +382,11 @@ fusion numbers are grouped 5-fold cross-validation, out of fold):
 | same, with the current WavLM head (v2h) | 0.154 |
 | + back-end-re-trained XLS-R + AASIST (v2i) | 0.151 |
 | same without the glass-box model (v3) | 0.146 |
-| **Submitted fusion (v3)** | **0.146** |
+| **Submitted fusion (v3)** | **0.146** (0.119 at P_spoof = 0.3) |
 
 **Our submissions, in order:**
 
-| Version | What changed | Fusion dev minDCF |
+| Version | What changed | Fusion dev minDCF (P_spoof = 0.5) |
 |---|---|---|
 | v0 | Average of two AASIST models trained on ASVspoof 2019 LA (a safety net) | – |
 | v1 | Equal-weight average of the two published XLS-R detectors | – |
@@ -389,17 +400,16 @@ fusion numbers are grouped 5-fold cross-validation, out of fold):
 | v2h | v2d with the WavLM head retrained on layers 3–12 | 0.154 |
 | v2i | v2h + back-end-re-trained XLS-R + AASIST (`tak_head`) | 0.151 |
 | v3 | v2i without the glass-box model: XLS-R + AASIST, XLSR-SLS, WavLM head, `tak_head` | 0.146 |
-| **final** | **v3 is what we submit** | **0.146** |
+| **final** | **v3 is what we submit** | **0.146** (0.119 at P_spoof = 0.3) |
 
 v2a–v2g used the first WavLM head (layers 6–9), whose weights were replaced when the head was retrained for
 v2h, so only v2h and later versions can be reproduced from the current model files.
 
-Two more measurements: transductive self-training improved the fused minDCF from 0.269 to 0.229–0.251 in a
+Two more measurements, also at P_spoof = 0.5: transductive self-training improved the fused minDCF from 0.269 to 0.229–0.251 in a
 labelled simulation (VCTK real + unseen DiffSSD generators), yet in the real fusion it barely changed the
 cross-validated minDCF next to the plain head (v2g 0.155 vs v2d 0.156) and was worse instead of it (v2f 0.179).
 Fine-tuning XLS-R + AASIST lowered minDCF on the 800 matched-dev clips that picked its checkpoint from 0.172 to
 0.145, but in the fusion it made things worse (v2e).
-**[FINAL: organizer feedback on the test set, if we used the one-time check]**
 
 ## 6. What worked and what did not
 
@@ -413,42 +423,42 @@ The NSA brief asks for both. Everything here is measured; numbers are from Secti
 - **Reproducing the organizers' preprocessing** for every training and validation clip, which removed length,
   loudness, sample rate and container as shortcuts.
 - **Training with distribution-matched noise.** A plain logistic regression on frozen WavLM features, trained
-  this way, beats both published detectors on seen attacks (0.131 for our first head and 0.111 for the current
-  one, vs 0.146 / 0.198) and flags 7–8% of genuine LJ clips instead of 97.5%.
+  this way, beats both published detectors on seen attacks (0.079 for the current head vs 0.116 / 0.140 at
+  P_spoof = 0.3) and flags 7–8% of genuine LJ clips instead of 97.5%.
 - **Adding real voices that are not VCTK** (LibriSpeech) and our own TTS clips to training.
-- **Looking inside WavLM.** A per-layer probe shows the spoofing evidence peaks in the middle layers: layers
+- **Looking inside WavLM.** A per-layer probe (at P_spoof = 0.5) shows the spoofing evidence peaks in the middle layers: layers
   6 and 7 reach minDCF about 0.24 and layers 8–10 about 0.25–0.27, against 0.77 for the input embeddings and
   0.38 for the top layer. Low layers are raw acoustics, top layers are about words; synthesis traces sit in
   between. Our first head used the best four layers, 6–9; widening it to layers 3–12 improved seen attacks
-  from 0.131 to 0.111 (the layers were chosen on our evaluation data, so both numbers are slightly
-  optimistic).
+  from 0.131 to 0.111 at P_spoof = 0.5 (the layers were chosen on our evaluation data, so both numbers are
+  slightly optimistic).
 - **Fusion across model families** with weights fitted on seen and unseen attacks (best single model 0.204,
   four-model fusion 0.178; 0.154 with the condition-aware quiet-clip terms and the current WavLM head; 0.146
-  in v3).
+  in v3, all at P_spoof = 0.5; v3 is 0.119 at 0.3).
 - **Re-training only the AASIST back end on noise-matched audio**, with XLS-R frozen. Alone it is no better
-  than the published model on the fusion dev set (0.249 vs 0.243), but adding it improved the fusion from
-  0.154 (v2h) to 0.151 (v2i).
+  than the published model on the fusion dev set (0.249 vs 0.243 at P_spoof = 0.5), but adding it improved the fusion
+  from 0.154 (v2h) to 0.151 (v2i) at the same setting.
 - **Condition-aware fusion.** Letting the weights differ on very clean clips (noise floor below −55 dBFS)
-  improved the cross-validated minDCF from 0.178 to 0.156 (v2c to v2d).
-- **Transductive self-training, in simulation** (0.269 to 0.229–0.251; but see below for the real fusion).
+  improved the cross-validated minDCF from 0.178 to 0.156 (v2c to v2d, P_spoof = 0.5).
+- **Transductive self-training, in simulation** (0.269 to 0.229–0.251 at P_spoof = 0.5; but see below for the real fusion).
 
 **What did not work**
 
 - **Fine-tuning XLS-R + AASIST on noise-matched audio: a trade, not a win.** It cut false alarms on LJ Speech
-  from 97.5% to 5% and improved seen attacks a little (0.198 to 0.181), but it forgot much of what made the
-  published model generalise: on unseen generators minDCF went from 0.276 to 0.541 (it catches 37% of the
+  from 97.5% to 5% and improved seen attacks a little (0.140 to 0.123), but it forgot much of what made the
+  published model generalise: on unseen generators minDCF went from 0.179 to 0.331 (it catches 37% of the
   held-out DiffSSD clips instead of 97%). In the fusion it got a negative weight and made the
-  cross-validated minDCF worse (0.156 to 0.164, v2e). Keeping XLS-R frozen and re-training only the back end
+  cross-validated minDCF worse (0.156 to 0.164 at P_spoof = 0.5, v2e). Keeping XLS-R frozen and re-training only the back end
   avoided this (see What worked).
 - **Transductive self-training in the real fusion.** It helped in the labelled simulation (0.269 to
   0.229–0.251), but on our fusion dev set it did not beat the plain WavLM head (v2f 0.179, v2g 0.155 vs v2d
-  0.156).
+  0.156; all at P_spoof = 0.5).
 - **Detectors trained only on VCTK treat unfamiliar real voices as fake.** The strongest published detector
   catches 97.2% of DiffSSD and 99.4% of our macOS fakes, but also flags 97.5% of genuine LJ Speech. It learned
   "real = VCTK studio audio".
-- **Published detectors under noise:** 0.036 on clean dev, 0.198 once test-matched noise is added.
+- **Published detectors under noise:** 0.020 on clean dev, 0.140 once test-matched noise is added.
 - **Denoising before detection made things worse** (spectral gating: minDCF 0.13–0.17 vs 0.11 on the same
-  clips). Removing noise also removes the fine detail the detectors rely on; training *with* matched noise is
+  clips, at P_spoof = 0.5). Removing noise also removes the fine detail the detectors rely on; training *with* matched noise is
   what worked.
 - **Training on the provided data alone.** DiffSSD fakes and LJ reals differ in speaker, text, sample rate,
   loudness, length and mains hum, so a model separates them without learning anything about synthesis.
@@ -458,7 +468,7 @@ The NSA brief asks for both. Everything here is measured; numbers are from Secti
   class information here. They still matter for real-world files (they caught DiffSSD PlayHT files named
   `.wav` that are MP3 inside).
 - **Mains hum (ENF):** absent from the test set.
-- **Classic forensic cues on their own:** minDCF 0.48 on laundered, noisy audio.
+- **Classic forensic cues on their own:** minDCF 0.38 on laundered, noisy audio.
 - **Speaker-consistency drift** does not separate whole-utterance TTS from real speech; it only finds splices.
 - **The compression-grid detector** finds MP3 traces at 32 kbps (10 of 10 clips) but rarely at 64 kbps
   (1 of 10) and not at 128 kbps.
@@ -601,7 +611,9 @@ ensemble and its report is `python -m hearsay.cli predict FILE --meta <fusion_me
 **Docker.** The image contains the code, the Python environment, ffmpeg and the model files, and runs on CPU;
 [docs/DOCKER.md](docs/DOCKER.md) has the build and run commands. After `docker build -t hearsay-dhsquad .`,
 `docker run --rm -v /path/to/HackGTHearsayTesting:/data:ro -v "$PWD/out:/out" hearsay-dhsquad` scores the test
-folder and writes `out/dh_squad_predictions.tsv`. **[FINAL: measured Docker run time]**
+folder and writes `out/dh_squad_predictions.tsv`. On our laptop (Docker limited to 6 CPUs and 8 GB) the whole
+test set took 55 minutes, about 2 s per clip, and reproduced our submitted scores: rank correlation 0.999999,
+no verdict changed ([docs/DOCKER.md](docs/DOCKER.md)).
 
 **Reproducing our training**, in order (data goes under `data/`, which is not in git; each step lists the
 command we ran):
@@ -647,7 +659,10 @@ hearsay/                  the package
   cli.py                  predict, score, explain, report, compute, experts, policy
 scripts/                  data preparation, training, scoring, fusion, model download
 submissions/<version>/    submitted TSVs and the fusion_meta.json that produced them
-docs/                     FINDINGS.md, ARCHITECTURE.md, DOCKER.md
+docs/                     FINDINGS.md (what the data told us, what worked, what did not),
+                          ARCHITECTURE.md, DOCKER.md, PITCH.md (expo talk track), DEVPOST.md
+docs/sample_reports/      four per-file forensic reports and the full-test-set dashboard (open in a browser)
+Dockerfile                CPU image; `docker build` fetches public weights and our release archive
 requirements.txt          pinned Python dependencies
 ```
 

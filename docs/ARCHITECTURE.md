@@ -2,8 +2,7 @@
 
 This is the detailed companion to the [README](../README.md). The README says what each part is for; this page
 says exactly how each part works, which file implements it, and which numbers we measured. Measurements about
-the data itself are in [FINDINGS.md](FINDINGS.md). Values marked **[FINAL: ...]** still change until the
-submitted fusion is frozen.
+the data itself are in [FINDINGS.md](FINDINGS.md).
 
 Contents
 
@@ -85,14 +84,15 @@ convention, so fusion never has to think about polarity. The published models ou
 | Runtime | onnxruntime on CPU, about 0.2 s per clip (CoreML fails on these graphs) | same |
 | Size | 1.26 GB | 1.36 GB |
 
-Measured on our data (all at the model's own boundary, log-odds above 0, unless it says minDCF):
+Measured on our data (all at the model's own boundary, log-odds above 0, unless it says minDCF; minDCF at the
+organizers' P_spoof = 0.3):
 
 | | XLS-R + AASIST | XLSR-SLS |
 |---|---|---|
-| Replica of LA dev, clean (no added noise), minDCF (EER) | 0.036 (0.8%) | – |
-| Noise-matched LA dev, minDCF (EER) | 0.198 (6.4%) | 0.146 (6.1%) |
+| Replica of LA dev, clean (no added noise), minDCF (EER) | 0.020 (0.8%) | – |
+| Noise-matched LA dev, minDCF (EER) | 0.140 (6.4%) | 0.116 (6.1%) |
 | VCTK real clips flagged (noise-matched dev) | 13.6% | 15.6% |
-| VCTK real + unseen generators, minDCF (EER) | 0.276 (6.8%) | 0.274 (9.3%) |
+| VCTK real + unseen generators, minDCF (EER) | 0.179 (6.8%) | 0.214 (9.3%) |
 | All 10 DiffSSD generators flagged | 97.2% | 91.0% |
 | 7 held-out DiffSSD generators flagged | 97.4% | 92.1% |
 | All 32 macOS voices flagged | 99.4% | 99.0% |
@@ -127,14 +127,14 @@ against the ONNX export on 8 test clips: the largest difference in log-odds was 
 | Speed | about 1.1 s per step, so about 40 minutes for 2,000 steps |
 | Model selection | minDCF on 800 random noise-matched dev clips (407 real, 393 fake) every 400 steps; the best checkpoint is kept |
 
-Results on those 800 clips: 0.172 (EER 5.4%) before fine-tuning, 0.160 at step 400, 0.153 at step 800, 0.148
+Results on those 800 clips (minDCF at P_spoof = 0.5, the setting we trained with): 0.172 (EER 5.4%) before fine-tuning, 0.160 at step 400, 0.153 at step 800, 0.148
 at step 1,200 and 0.145 (EER 4.6%) at step 2,000, the checkpoint we kept. On the full evaluation sets
-(`scripts/score_tak_ft.py`), compared with the published model:
+(`scripts/score_tak_ft.py`), compared with the published model (minDCF at P_spoof = 0.3):
 
 | | Published XLS-R + AASIST | Fine-tuned (`tak_ft`) |
 |---|---|---|
-| Noise-matched LA dev (3,128 clips), minDCF (EER) | 0.198 (6.4%) | 0.181 (4.9%) |
-| VCTK real + unseen generators, minDCF (EER) | 0.276 (6.8%) | 0.541 (12.4%) |
+| Noise-matched LA dev (3,128 clips), minDCF (EER) | 0.140 (6.4%) | 0.123 (4.9%) |
+| VCTK real + unseen generators, minDCF (EER) | 0.179 (6.8%) | 0.331 (12.4%) |
 | VCTK real clips flagged | 13.6% | 4.0% |
 | 7 held-out DiffSSD generators / 17 held-out macOS voices flagged | 97.4% / 99.3% | 36.5% / 99.1% |
 | LJ Speech / held-out LibriSpeech genuine clips flagged | 97.5% / – | 5.0% / 4.7% |
@@ -142,24 +142,24 @@ at step 1,200 and 0.145 (EER 4.6%) at step 2,000, the checkpoint we kept. On the
 
 Fine-tuning moved the model's boundary toward "real" and removed most false alarms on unfamiliar voices, but it
 also lost most of its ability to catch generators it never saw. In the fusion it received a negative weight and
-the cross-validated minDCF got worse (v2e 0.164 vs v2d 0.156).
+the cross-validated minDCF got worse (v2e 0.164 vs v2d 0.156 at P_spoof = 0.5).
 
 **Back-end-only variant (`tak_head`).** Same script, data and noise, but XLS-R stays frozen and only the AASIST
 back end (0.45 M parameters) is trained (1,500 steps at about 0.7 s, model selection every 300 steps; best at
-step 600: 0.172 to 0.149 on the 800 selection clips). Saved as `work/models/tak_head/best.pt`, scored with
-`TAK_CKPT=work/models/tak_head/best.pt TAK_KEY=tak_head python scripts/score_tak_ft.py ...`:
+step 600: 0.172 to 0.149 on the 800 selection clips at P_spoof = 0.5). Saved as `work/models/tak_head/best.pt`, scored with
+`TAK_CKPT=work/models/tak_head/best.pt TAK_KEY=tak_head python scripts/score_tak_ft.py ...` (minDCF at P_spoof = 0.3):
 
 | | Back end re-trained (`tak_head`) |
 |---|---|
-| Noise-matched LA dev (3,128 clips), minDCF (EER) | 0.179 (5.2%) |
-| VCTK real + unseen generators, minDCF (EER) | 0.305 (8.7%) |
+| Noise-matched LA dev (3,128 clips), minDCF (EER) | 0.117 (5.2%) |
+| VCTK real + unseen generators, minDCF (EER) | 0.197 (8.7%) |
 | VCTK real clips flagged | 3.5% |
 | 7 held-out DiffSSD generators / 17 held-out macOS voices flagged | 67.7% / 98.4% |
 | LJ Speech / held-out LibriSpeech genuine clips flagged | 38.4% / 16.0% |
 | Test clips flagged (sanity check) | 11.3% |
 
 It keeps far more of the published model's reach to unseen generators than the full fine-tune, and it helps the
-fusion (v2h 0.154, v2i 0.151, v3 0.146).
+fusion (v2h 0.154, v2i 0.151, v3 0.146 at the development setting P_spoof = 0.5; v3 is 0.119 at 0.3).
 
 **Scoring:** the score is the mean over up to three 4.04 s windows.
 [`scripts/score_tak_ft.py`](../scripts/score_tak_ft.py) builds the network from the official checkpoint and then
@@ -176,7 +176,7 @@ and overflowed (summing hundreds of frames exceeds fp16's 65,504 limit), so we r
 the model runs in fp32, so CPU scores can differ slightly from the ones computed on the Mac.
 
 **Layer probe** ([`scripts/train_ssl_head.py`](../scripts/train_ssl_head.py)). One logistic regression per
-layer, trained on the same data as the head, scored by minDCF on a pooled evaluation set (noise-matched LA
+layer, trained on the same data as the head, scored by minDCF (at P_spoof = 0.5) on a pooled evaluation set (noise-matched LA
 dev, held-out DiffSSD generators and macOS voices, LJ Speech, held-out LibriSpeech speakers: 2,719 real,
 2,645 fake):
 
@@ -195,6 +195,10 @@ the first), standardised, and fed to an L2-regularised logistic regression (C = 
 Training data: 9,694 clips (3,021 real, 6,673 fake): noise-matched LA train, the held-in LibriSpeech speakers,
 the 3 held-in DiffSSD generators and the 15 held-in macOS voices. Saved as `wavlm_head.npz` (layers, mean,
 scale, coefficients, intercept).
+
+We compared the two heads during development, at P_spoof = 0.5. The first head's scores were overwritten when
+it was replaced, so only the current head can be re-scored at the organizers' 0.3: 0.079 on seen attacks,
+0.252 on unseen generators and 0.182 on the pooled set (same EERs as below).
 
 | Evaluation | First head, layers 6–9 | Current head, layers 3–12 |
 |---|---|---|
@@ -222,9 +226,9 @@ These are the predictor's defaults (`SELF_TRAIN_DEFAULTS` in `hearsay/pipeline.p
 the un-adapted WavLM head instead and says so.
 
 In a labelled simulation (half of the VCTK dev speakers as real, held-out DiffSSD generators as fakes; labels
-used only to measure), the fused anchor + head minDCF improved from 0.269 to 0.229–0.251, depending on the
+used only to measure), the fused anchor + head minDCF improved from 0.269 to 0.229–0.251 (P_spoof = 0.5), depending on the
 pseudo-label fractions. Caveat: a file's score now depends on the rest of the batch.
-The submitted fusion (v3) does **not** use self-training: on the full dev mix it made the fusion worse (0.179 vs 0.156).
+The submitted fusion (v3) does **not** use self-training: on the full dev mix it made the fusion worse (0.179 vs 0.156 at P_spoof = 0.5).
 
 ## 5. Forensic experts
 
@@ -283,8 +287,8 @@ noise-matched LA train plus the held-in halves of LibriSpeech, DiffSSD and our m
 
 | Evaluation | Result |
 |---|---|
-| Noise-matched LA dev, minDCF (EER) | 0.476 (15.6%) |
-| VCTK real + unseen generators, minDCF (EER) | 0.475 (15.5%) |
+| Noise-matched LA dev, minDCF at P_spoof = 0.3 (EER) | 0.384 (15.6%) |
+| VCTK real + unseen generators, minDCF at P_spoof = 0.3 (EER) | 0.382 (15.5%) |
 | Held-out DiffSSD / macOS fakes flagged | 48.8% / 90.2% |
 | LJ Speech / held-out LibriSpeech genuine clips flagged | 20.7% / 12.9% |
 
@@ -335,7 +339,7 @@ p     = clip(p + rank(fused) * 1e-12, 1e-6, 1 - 1e-6)   every value unique, orde
 
 Interim example (v2c, four detectors, C = 0.3): weights on the z-scores are 1.57 (XLS-R + AASIST), 0.94
 (XLSR-SLS), 3.36 (WavLM head) and 0.78 (glass-box model); Platt a = 1.06, c = 1.43; prior shift −1.33; grouped
-CV minDCF 0.178 (EER 5.2%). The WavLM head gets the largest weight although it is not the best single model on
+CV minDCF 0.178 (EER 5.2%) at P_spoof = 0.5. The WavLM head gets the largest weight although it is not the best single model on
 this dev set: it disagrees most usefully with the XLS-R models. Weights of correlated inputs should not be read
 as importance on their own. Submitted fusion (v3, `submissions/v3/fusion_meta.json`), weights on z-scored log-odds; the quiet column adds
 the model-by-quiet interaction (noise floor below -55 dBFS):
@@ -438,7 +442,10 @@ Mean cost per call in full mode: speaker_consistency 390 ms, double_compression 
 voice_quality 25 ms, pitch 14 ms, spectral_stats 11 ms, pauses_breaths 7.5 ms, codec_cutoff 6.8 ms,
 reverb_replay 6.3 ms, discontinuity 4.0 ms, enf 4.0 ms, lfcc_stats 0.8 ms, container 0.5 ms, noise_floor 0.4 ms,
 transcript 0.5 ms (cached text; live Whisper costs about 0.5 s per clip after a 2 s model load), repeated_script 0.03 ms.
-**[FINAL: re-run `compute` on the final pipeline]**
+On the full test set with the submitted fusion (v3, `predict --reports`), 1,671 files: every file got triage,
+the cheap tier and the detector ensemble; 3 files (0.2%) reached the conditional compression tier, 145 (8.7%)
+the medium tier and 109 (6.5%) the expensive tier. Analysis time was 136.5 s against an estimated 1,265 s for
+running every expert on every file (11%), with a median of 58.5 ms per file.
 
 ## 9. Reports
 
@@ -464,7 +471,8 @@ steps and the compute accounting.
 ## 10. Metric and submission writer
 
 [`hearsay/metrics.py`](../hearsay/metrics.py) mirrors the organizers' modified ASVspoof 5 code (the same DET
-computation with a stable mergesort, P_spoof = 0.5, C_miss = 1, C_fa = 4) and reports two readings: *intended*
+computation with a stable mergesort, C_miss = 1, C_fa = 4 and P_spoof = 0.3, the value the organizers confirmed on
+26 September; the copy shipped to teams said 0.5, which we used during development) and reports two readings: *intended*
 (spoof is the target class and 1.0 = synthetic, as the written specification says) and *shipped flipped* (what the
 unmodified code computes on our scores). Every number in our documentation is the intended reading.
 
@@ -516,8 +524,12 @@ We developed on a 16 GB Apple-silicon MacBook, so memory shaped the design:
 
 Measured per clip on 8 test clips (laptop CPU, 2 threads): XLS-R + AASIST 0.43 s, XLSR-SLS 0.49 s, fine-tuned
 XLS-R + AASIST 0.32 s, WavLM-Large 0.75 s, forensic features 0.33 s (2 processes); on the Mac GPU the fine-tuned
-XLS-R takes 0.11 s and WavLM 0.065 s. Time for the full test set: **[FINAL: per detector and total, from the
-`predict` timing printout, on the laptop and in Docker]**
+XLS-R takes 0.11 s and WavLM 0.065 s. Time for the full test set in Docker (6 CPU threads, 8 GB; from `predict`'s timing
+printout): XLS-R + AASIST 750 s, XLSR-SLS 764 s, re-trained XLS-R + AASIST 792 s, WavLM-Large 1,002 s and 11 s
+of model loading, 3,322 s in total (55 minutes, 2.0 s per clip). On the laptop we scored each detector
+separately with the development scripts and cached the results; writing all 1,671 reports from those cached
+scores took 589 s, and the router's analyses used 137 s of the estimated 1,265 s that running every expert
+on every file would take (11%).
 
 ## 13. Configuration and model files
 
@@ -529,7 +541,9 @@ Model files live under one folder, `$HEARSAY_MODELS` (default `work/models/`; th
 `/app/models`). `python -m hearsay.paths --meta <fusion_meta.json>` checks that every file the fusion needs is
 there. `scripts/fetch_models.sh` downloads the public weights, pinned to exact Hugging Face commits with sizes and
 SHA-256 hashes (`scripts/public_models.tsv`); our trained artifacts come from an archive made by
-`scripts/export_models.sh` **[FINAL: where the archive is published]**.
+`scripts/export_models.sh` and published as the GitHub release asset
+[`hearsay-models-v3.tar.gz`](https://github.com/MeagerPotato/hearsay-dh-squad/releases/tag/v1.0) (588.6 MB,
+SHA-256 `3565772ef137b1091aa944fbc461348aac4327176899f128ee9e7e0fdfaabc40`). The Dockerfile downloads it by default.
 
 | Detector key | Files under `$HEARSAY_MODELS` | Source |
 |---|---|---|

@@ -72,15 +72,16 @@ AAC, Opus, G.726, G.722, µ-law), mirroring the ~5% of band-limited, telephony-l
   not VCTK.
 
 * **Noise, not the attacks, is what breaks off-the-shelf detectors here.** On the same 3,128 ASVspoof 2019
-  LA dev clips, XLS-R + AASIST scores minDCF 0.036 (EER 0.8%) on clean pipeline output but 0.198
-  (EER 6.4%) once test-matched noise is added. The added noise alone makes it 5.5× worse.
+  LA dev clips, XLS-R + AASIST scores minDCF 0.020 (EER 0.8%) on clean pipeline output but 0.140
+  (EER 6.4%) once test-matched noise is added (organizers' setting, P_spoof = 0.3). The added noise alone
+  makes it 7× worse.
 * **Denoising before detection does not help; it hurts.** Spectral-gating noise reduction (stationary and
-  non-stationary) before scoring made minDCF worse (0.13–0.17 vs 0.11 on the same clips). Removing noise
+  non-stationary) before scoring made minDCF worse (0.13–0.17 vs 0.11 on the same clips, measured at the development setting P_spoof = 0.5). Removing noise
   also removes or alters the fine detail the detectors rely on. Training *with* matched noise is the
   fix that works (see below).
 * **Classic forensic cues are weak on laundered, noisy audio.** Our interpretable model on 216 named
   features (pitch, pauses, breaths, spectral dynamics, reverberation, vocoder harmonics) reaches minDCF
-  0.48 on its own, far behind the deep models. It still adds a small, independent signal in fusion,
+  0.38 on its own, far behind the deep models. It still adds a small, independent signal in fusion,
   and it supplies the plain-English explanations. Its most useful features were spectral-dynamics
   variability (LFCC deltas), speech/pause fraction, leading silence, reverberation (SRMR), vocoder
   harmonic structure, speaking rate, pitch variability, shimmer and formant bandwidths.
@@ -91,20 +92,24 @@ AAC, Opus, G.726, G.722, µ-law), mirroring the ~5% of band-limited, telephony-l
 
 * **Training on distribution-matched noise.** A plain logistic regression on frozen WavLM-Large
   embeddings, trained on noise-matched ASVspoof train audio, beats both off-the-shelf detectors on
-  matched dev (minDCF 0.131 vs 0.146 / 0.198). It also flags only ~8% of genuine LJSpeech clips, versus 97.5%.
+  matched dev (minDCF 0.079 vs 0.116 / 0.140 at P_spoof = 0.3, with the final layers 3–12). It also flags only ~8% of genuine LJSpeech clips, versus 97.5%.
 * **Where the evidence lives.** A per-layer probe of WavLM-Large shows spoofing evidence peaks in the
-  middle layers (7–10). The bottom layers (raw acoustics) and the top layers (words and meaning) are
-  both worse. We use layers 6–9.
-* **Fusion across different model families** (two XLS-R detectors, the WavLM head and the glass-box
-  forensic model). Weights are fitted on a dev set that mixes seen attacks with held-out *unseen*
+  middle layers (6–10). The bottom layers (raw acoustics) and the top layers (words and meaning) are
+  both worse. Our first head used layers 6–9; the final head uses the wider band 3–12 (see below).
+* **Fusion across different model families** (the two published XLS-R detectors, our re-trained AASIST
+  back end and the WavLM head). Weights are fitted on a dev set that mixes seen attacks with held-out *unseen*
   generator families, so they are not tuned only to attacks the models already know.
 * **Transductive self-training** (semi-supervised, no labels). The ensemble's most confident test clips
   are used as pseudo-labels to adapt the WavLM head to the test's own attacks. In a labelled
-  simulation (VCTK reals + unseen DiffSSD generators) it improved fused minDCF from 0.269 to 0.229–0.251.
+  simulation (VCTK reals + unseen DiffSSD generators) it improved fused minDCF from 0.269 to 0.229–0.251 (P_spoof = 0.5),
+  though not in the full fusion (see below).
 
 ### Choosing the final ensemble (and what we dropped)
 
-All numbers below are cross-validated (out-of-fold) minDCF on a dev mix. Real speech is ASVspoof 2019 LA
+All numbers below are cross-validated (out-of-fold) minDCF on a dev mix, at the development setting
+P_spoof = 0.5 (the value in the scorer shipped to us). At the organizers' confirmed P_spoof = 0.3 the submitted
+fusion scores 0.119 mixed (0.076 seen, 0.153 on all unseen families pooled). Re-running the sweep at 0.3, over
+model sets, real-clip weights of 1 to 4 and regularisation, found nothing better than it by more than 0.001. Real speech is ASVspoof 2019 LA
 dev bona fide (VCTK), matched to the test's noise. Fakes are drawn from three families: seen ASVspoof
 attacks A01–A06, held-out DiffSSD generators (unseen modern TTS) and held-out macOS voices.
 
@@ -115,7 +120,7 @@ attacks A01–A06, held-out DiffSSD generators (unseen modern TTS) and held-out 
 | … + noise-adapted AASIST back-end (**submitted**) | **0.146** | **0.098** | 0.280 | 0.044 |
 
 * **Full fine-tuning of XLS-R + AASIST on noise-matched data: better on noise, worse on unseen attacks.**
-  On matched dev it improved minDCF from 0.198 to 0.181, and it stopped flagging unfamiliar real voices
+  On matched dev it improved minDCF from 0.140 to 0.123 (P_spoof = 0.3), and it stopped flagging unfamiliar real voices
   (LJSpeech false alarms fell from 97.5% to 5%). But it caught only 33% of unseen DiffSSD generators,
   down from 97%. In fusion it received a *negative* weight, so we dropped it. Fine-tuning the transformer on six attack types
   made it forget what it knew about other synthesis families.
@@ -151,9 +156,11 @@ each signal is a lead to validate, not a proven feature.
 ## 6. The scorer's direction problem
 
 The organizers' scoring code is the ASVspoof 5 Track-1 evaluation package with two parameters changed
-(`Pspoof` 0.05→0.5, `Cfa` 10→4; verified by diffing against the upstream repository). That code treats a
+(`Pspoof` 0.05→0.5 in the copy shipped to teams, and 0.3 in the organizers' actual scoring, which they
+confirmed on Discord on 26 September; `Cfa` 10→4; verified by diffing against the upstream repository). That code treats a
 *higher* score as *bona fide*, while the submission format asks for 1.0 = synthetic. Run unmodified on
 correctly oriented scores, it gives a perfect detector minDCF = 1.0, the worst possible value. We follow
-the written specification (1.0 = synthetic, false alarms on real audio cost 4×) and flagged the mismatch
+the written specification (1.0 = synthetic; C_fa = 4, so with P_spoof = 0.3 a false alarm on real audio
+weighs about 1.7× a miss after normalisation) and flagged the mismatch
 to the organizers. Because the metric depends only on ranking, calibration does not matter, but ties and
 saturated scores can only hurt, so our writer guarantees strictly unique, non-saturated values.

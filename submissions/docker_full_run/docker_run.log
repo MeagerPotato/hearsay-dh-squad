@@ -1,0 +1,45 @@
+[predict] 1671 files; fusion config /app/models/fusion_meta.json uses ['w2v2_aasist', 'xlsr_sls', 'wavlm_head', 'tak_head'] (condition-aware)
+[predict] w2v2_aasist: no cache; computing 1671 file(s)
+  w2v2_aasist: 0/1671
+  w2v2_aasist: 200/1671
+  w2v2_aasist: 400/1671
+  w2v2_aasist: 600/1671
+  w2v2_aasist: 800/1671
+  w2v2_aasist: 1000/1671
+  w2v2_aasist: 1200/1671
+  w2v2_aasist: 1400/1671
+  w2v2_aasist: 1600/1671
+[predict] xlsr_sls: no cache; computing 1671 file(s)
+  xlsr_sls: 0/1671
+  xlsr_sls: 200/1671
+  xlsr_sls: 400/1671
+  xlsr_sls: 600/1671
+  xlsr_sls: 800/1671
+  xlsr_sls: 1000/1671
+  xlsr_sls: 1200/1671
+  xlsr_sls: 1400/1671
+  xlsr_sls: 1600/1671
+[predict] tak_head: no cache; computing 1671 file(s)
+[predict] torch device: cpu
+[predict]   tak_head: 200/1671
+[predict]   tak_head: 400/1671
+[predict]   tak_head: 600/1671
+[predict]   tak_head: 800/1671
+[predict]   tak_head: 1000/1671
+[predict]   tak_head: 1200/1671
+[predict]   tak_head: 1400/1671
+[predict]   tak_head: 1600/1671
+[predict] wavlm_head: no cache; computing 1671 file(s)
+[predict]   wavlm: 400/1671
+[predict]   wavlm: 800/1671
+[predict]   wavlm: 1200/1671
+[predict]   wavlm: 1600/1671
+[predict] wrote /out/dh_squad_predictions.tsv (1671 files, validated against the template)
+[predict] wrote /out/dh_squad_predictions_scores.json; share with cm-score > 0.5: 0.160
+wrote /out/dh_squad_predictions.tsv (1671 files; 16.0% with cm-score > 0.5) and /out/dh_squad_predictions_scores.json
+  w2v2_aasist       1671 computed,     0 cached (load 2.0 s, scoring 749.5 s, 0.449 s/file)
+  xlsr_sls          1671 computed,     0 cached (load 2.8 s, scoring 763.9 s, 0.457 s/file)
+  tak_head          1671 computed,     0 cached (load 5.7 s, scoring 792.3 s, 0.474 s/file)
+  wavlm_head        1671 computed,     0 cached (load 0.2 s, scoring 1002.0 s, 0.600 s/file)
+total 3321.7 s
+DOCKER_EXIT 0 wall 3324 s
